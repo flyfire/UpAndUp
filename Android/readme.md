@@ -1432,5 +1432,97 @@ return child; // 返回 Viwe
 
 在 ListView 滑动之后，还会调用 invalidate 方法来申请重新绘制，这个过程又会调用依次 onLayout 这时的 onLayout 执行过程就如果显示到屏幕上时第二次调用 onLayout 的过程，会将 View 添加到 RecycleBin ，移除所有 View ，再从 RecycleBin 中获取 View 添加到 ListView 中。整个过程执行结束。
 
+##Android Parcelable和Serializable的区别
+
+1、作用
+
+Serializable的作用是为了保存对象的属性到本地文件、数据库、网络流、rmi以方便数据传输，当然这种传输可以是程序内的也可以是两个程序间的。而Android的Parcelable的设计初衷是因为Serializable效率过慢，为了在程序内不同组件间以及不同Android程序间(AIDL)高效的传输数据而设计，这些数据仅在内存中存在，Parcelable是通过IBinder通信的消息的载体。
+
+从上面的设计上我们就可以看出优劣了。
+
+ 
+
+2、效率及选择
+
+Parcelable的性能比Serializable好，在内存开销方面较小，所以在内存间数据传输时推荐使用Parcelable，如activity间传输数据，而Serializable可将数据持久化方便保存，所以在需要保存或网络传输数据时选择Serializable，因为android不同版本Parcelable可能不同，所以不推荐使用Parcelable进行数据持久化
+
+ 
+
+3、编程实现
+
+对于Serializable，类只需要实现Serializable接口，并提供一个序列化版本id(serialVersionUID)即可。而Parcelable则需要实现writeToParcel、describeContents函数以及静态的CREATOR变量，实际上就是将如何打包和解包的工作自己来定义，而序列化的这些操作完全由底层实现。
+
+Parcelable的一个实现例子如下
+
+```
+public class MyParcelable implements Parcelable {
+     private int mData;
+     private String mStr;
+
+     public int describeContents() {
+         return 0;
+     }
+
+     // 写数据进行保存
+     public void writeToParcel(Parcel out, int flags) {
+         out.writeInt(mData);
+         out.writeString(mStr);
+     }
+
+     // 用来创建自定义的Parcelable的对象
+     public static final Parcelable.Creator<MyParcelable> CREATOR
+             = new Parcelable.Creator<MyParcelable>() {
+         public MyParcelable createFromParcel(Parcel in) {
+             return new MyParcelable(in);
+         }
+
+         public MyParcelable[] newArray(int size) {
+             return new MyParcelable[size];
+         }
+     };
+     
+     // 读数据进行恢复
+     private MyParcelable(Parcel in) {
+         mData = in.readInt();
+         mStr = in.readString();
+     }
+ }
+```
+
+从上面我们可以看出Parcel的写入和读出顺序是一致的。如果元素是list读出时需要先new一个ArrayList传入，否则会报空指针异常。如下：
+
+```
+list = new ArrayList<String>();
+in.readStringList(list);
+```
+ PS: 在自己使用时，read数据时误将前面int数据当作long读出，结果后面的顺序错乱，报如下异常，当类字段较多时务必保持写入和读取的类型及顺序一致。
+
+```
+11-21 20:14:10.317: E/AndroidRuntime(21114): Caused by: java.lang.RuntimeException: Parcel android.os.Parcel@4126ed60: Unmarshalling unknown type code 3014773 at offset 164
+```
+
+4、高级功能上
+
+Serializable序列化不保存静态变量，可以使用Transient关键字对部分字段不进行序列化，也可以覆盖writeObject、readObject方法以实现序列化过程自定义
+
+##Bitmap
+
+在Android 2.2 (API level 8)以及之前，当垃圾回收发生时，应用的线程是会被暂停的，这会导致一个延迟滞后，并降低系统效率。 从Android 2.3开始，添加了并发垃圾回收的机制， 这意味着在一个Bitmap不再被引用之后，它所占用的内存会被立即回收。
+在Android 2.3.3 (API level 10)以及之前, 一个Bitmap的像素级数据（pixel data）是存放在Native内存空间中的。 这些数据与Bitmap本身是隔离的，Bitmap本身被存放在Dalvik堆中。我们无法预测在Native内存中的像素级数据何时会被释放，这意味着程序容易超过它的内存限制并且崩溃。 自Android 3.0 (API Level 11)开始， 像素级数据则是与Bitmap本身一起存放在Dalvik堆中。
+
+从Android 3.0 (API Level 11)开始，引进了BitmapFactory.Options.inBitmap字段。 如果使用了这个设置字段，decode方法会在加载Bitmap数据的时候去重用已经存在的Bitmap。这意味着Bitmap的内存是被重新利用的，这样可以提升性能，并且减少了内存的分配与回收。然而，使用inBitmap有一些限制，特别是在Android 4.4 (API level 19)之前，只有同等大小的位图才可以被重用。
+
+
+##Fragment生命周期
+onAttach -> onCreate() -> onCreateView -> onActivityCreated() -> onStart() -> onResume -> onPause -> onStop -> onDestroyView -> onDestroy-> onDetach
+
+##进程的五个等级
++ 前台进程 Activity onResume Service bind startForground onCreate onStart onDestroy BroadcastReceiver onReceive
++ 可见进程 Activity onPause
++ 服务进程 Service 后台播放
++ 后台进程 Activity onStop
++ 空进程
+
+
 
 
